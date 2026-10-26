@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: bbc-stendal-kalender
+    runtime: node
+    plan: free
+    buildCommand: "echo kein Build noetig"
+    startCommand: node server.js
+    healthCheckPath: /api/config
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GOOGLE_CALENDAR_ID
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: USERS
+        sync: false
+      - key: ALLOWED_EMBED_ORIGINS
+        value: https://www.bbc-stendal.de https://bbc-stendal.de

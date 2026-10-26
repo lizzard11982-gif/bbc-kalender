@@ -1,0 +1,12 @@
+{
+  "name": "bbc-stendal-kalender",
+  "version": "1.0.0",
+  "description": "Vereinskalender + Editor-App für den BBC Stendal (Google Kalender als Datenquelle)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "add-user": "node scripts/add-user.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED"
+}
