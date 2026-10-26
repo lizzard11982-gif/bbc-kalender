@@ -202,7 +202,7 @@ function serveStatic(req, res, url) {
     send(res, 200, data, {
       'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
       'Content-Security-Policy': `frame-ancestors ${embeddable ? EMBED_ORIGINS : "'none'"}`,
-      'Cache-Control': rel.endsWith('sw.js') ? 'no-cache' : 'public, max-age=300',
+      'Cache-Control': /\.(html|js|css|webmanifest)$/.test(rel) ? 'no-cache' : 'public, max-age=86400', // Seiten/Skripte immer frisch, Bilder dürfen gecacht werden
     });
   });
 }
