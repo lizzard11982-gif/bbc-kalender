@@ -115,11 +115,12 @@ function ics(events) {
   return lines.join('\r\n');
 }
 
+const validDay = (v) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(v || '')) return false; const d = new Date(v + 'T00:00:00Z'); return !isNaN(d) && d.toISOString().slice(0, 10) === v; };
 function range(url) {
   const now = new Date();
-  const from = url.searchParams.get('from') || new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
-  const to = url.searchParams.get('to') || new Date(now.getFullYear() + 1, now.getMonth() + 1, 1).toISOString().slice(0, 10);
-  return [from, to];
+  const def = (y, m) => { const d = new Date(Date.UTC(y, m, 1)); return d.toISOString().slice(0, 10); };
+  const f = url.searchParams.get('from'), t = url.searchParams.get('to');
+  return [validDay(f) ? f : def(now.getFullYear(), now.getMonth() - 1), validDay(t) ? t : def(now.getFullYear() + 1, now.getMonth() + 1)];
 }
 
 // ---------- API ----------
