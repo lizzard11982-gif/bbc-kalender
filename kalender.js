@@ -14,14 +14,15 @@
   const longDate = (s) => { const d = parse(s); return `${WD[wdIndex(d)]}, ${d.getDate()}. ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
 
   const today = new Date();
-  const st = { y: today.getFullYear(), m: today.getMonth(), view: 'month', events: [], cats: [], teams: [], hidden: new Set(), team: 'alle', sel: null, lastFocus: null };
+  const st = { y: today.getFullYear(), m: today.getMonth(), view: 'month', scope: 'month', events: [], cats: [], teams: [], hidden: new Set(), team: 'alle', sel: null, lastFocus: null };
   const catOf = (id) => st.cats.find((c) => c.id === id) || { label: id, color: '#031029' };
 
   // ----- Daten -----
   async function load() {
     $('status').className = 'status'; $('status').textContent = 'Termine werden geladen …';
     try {
-      const from = ymd(st.y, st.m - 1, 1), to = ymd(st.y, st.m + 2, 1);
+      const yearMode = st.view === 'list' && st.scope === 'year';
+      const from = yearMode ? ymd(st.y, 0, 1) : ymd(st.y, st.m - 1, 1), to = yearMode ? ymd(st.y + 1, 0, 1) : ymd(st.y, st.m + 2, 1);
       const r = await fetch(`/api/events?from=${from}&to=${to}`);
       if (!r.ok) throw new Error();
       st.events = (await r.json()).events;
@@ -41,7 +42,13 @@
 
   // ----- Rendering -----
   function render() {
-    $('monthLabel').textContent = st.view === 'month' ? `${MONTHS[st.m]} ${st.y}` : `${MONTHS[st.m]} ${st.y}`;
+    const yearMode = st.view === 'list' && st.scope === 'year';
+    $('monthLabel').textContent = yearMode ? String(st.y) : `${MONTHS[st.m]} ${st.y}`;
+    $('prev').setAttribute('aria-label', yearMode ? 'Voriges Jahr' : 'Voriger Monat');
+    $('next').setAttribute('aria-label', yearMode ? 'Nächstes Jahr' : 'Nächster Monat');
+    $('scope').hidden = st.view !== 'list';
+    $('sMonth').setAttribute('aria-pressed', st.scope === 'month');
+    $('sYear').setAttribute('aria-pressed', st.scope === 'year');
     $('vMonth').setAttribute('aria-selected', st.view === 'month');
     $('vList').setAttribute('aria-selected', st.view === 'list');
     st.view === 'month' ? renderMonth() : renderList();
@@ -86,10 +93,12 @@
   }
 
   function renderList() {
-    const from = ymd(st.y, st.m, 1);
-    const list = visible().filter((e) => e.end.slice(0, 10) >= from).sort(sortEv);
-    if (!list.length) { $('view').innerHTML = '<div class="list"><p class="empty">Keine Termine in diesem Zeitraum.</p></div>'; return; }
+    const yearMode = st.scope === 'year';
+    const from = yearMode ? ymd(st.y, 0, 1) : ymd(st.y, st.m, 1), to = yearMode ? ymd(st.y + 1, 0, 1) : null;
+    const list = visible().filter((e) => e.end.slice(0, 10) >= from && (!to || e.start.slice(0, 10) < to)).sort(sortEv);
+    if (!list.length) { $('view').innerHTML = `<div class="list"><p class="empty">${yearMode ? `Keine Termine im Jahr ${st.y}.` : 'Keine Termine in diesem Zeitraum.'}</p></div>`; return; }
     let html = '<div class="list">', last = '';
+    if (yearMode) html += `<p class="year-sum">${list.length} Termin${list.length === 1 ? '' : 'e'} im Jahr ${st.y}</p>`;
     for (const e of list) {
       const d = parse(e.start), key = `${d.getFullYear()}-${d.getMonth()}`;
       if (key !== last) { html += `<h3>${MONTHS[d.getMonth()]} ${d.getFullYear()}</h3>`; last = key; }
@@ -156,7 +165,9 @@
 
   // ----- Events -----
   function shift(n) {
-    const d = new Date(st.y, st.m + n, 1); st.y = d.getFullYear(); st.m = d.getMonth(); st.sel = null; load();
+    if (st.view === 'list' && st.scope === 'year') st.y += n;
+    else { const d = new Date(st.y, st.m + n, 1); st.y = d.getFullYear(); st.m = d.getMonth(); }
+    st.sel = null; load();
   }
   document.addEventListener('click', (ev) => {
     const t = ev.target;
@@ -176,8 +187,10 @@
   $('prev').onclick = () => shift(-1);
   $('next').onclick = () => shift(1);
   $('today').onclick = () => { st.y = today.getFullYear(); st.m = today.getMonth(); st.sel = null; load(); };
-  $('vMonth').onclick = () => { st.view = 'month'; render(); };
-  $('vList').onclick = () => { st.view = 'list'; render(); };
+  $('vMonth').onclick = () => { st.view = 'month'; load(); };
+  $('vList').onclick = () => { st.view = 'list'; load(); };
+  $('sMonth').onclick = () => { st.scope = 'month'; load(); };
+  $('sYear').onclick = () => { st.scope = 'year'; load(); };
   $('team').onchange = (e) => { st.team = e.target.value; render(); };
   $('subscribe').href = `webcal://${location.host}/api/calendar.ics`;
 
