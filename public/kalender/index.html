@@ -33,6 +33,11 @@
   </section>
 
   <section class="filters" aria-label="Filter">
+    <div class="scope" id="scope" role="group" aria-label="Zeitraum der Liste" hidden>
+      <span class="scope-label">Anzeige:</span>
+      <button id="sMonth" aria-pressed="true">Ab diesem Monat</button>
+      <button id="sYear" aria-pressed="false">Ganzes Jahr</button>
+    </div>
     <div class="chips" id="chips"></div>
     <label class="team"><span class="sr-only">Mannschaft</span>
       <select id="team"></select>
