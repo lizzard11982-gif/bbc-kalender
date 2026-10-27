@@ -21,7 +21,7 @@
   async function load() {
     $('status').className = 'status'; $('status').textContent = 'Termine werden geladen …';
     try {
-      const yearMode = st.view === 'list' && st.scope === 'year';
+      const yearMode = st.view === 'year' || (st.view === 'list' && st.scope === 'year');
       const from = yearMode ? ymd(st.y, 0, 1) : ymd(st.y, st.m - 1, 1), to = yearMode ? ymd(st.y + 1, 0, 1) : ymd(st.y, st.m + 2, 1);
       const r = await fetch(`/api/events?from=${from}&to=${to}`);
       if (!r.ok) throw new Error();
@@ -42,7 +42,7 @@
 
   // ----- Rendering -----
   function render() {
-    const yearMode = st.view === 'list' && st.scope === 'year';
+    const yearMode = st.view === 'year' || (st.view === 'list' && st.scope === 'year');
     $('monthLabel').textContent = yearMode ? String(st.y) : `${MONTHS[st.m]} ${st.y}`;
     $('prev').setAttribute('aria-label', yearMode ? 'Voriges Jahr' : 'Voriger Monat');
     $('next').setAttribute('aria-label', yearMode ? 'Nächstes Jahr' : 'Nächster Monat');
@@ -51,7 +51,8 @@
     $('sYear').setAttribute('aria-pressed', st.scope === 'year');
     $('vMonth').setAttribute('aria-selected', st.view === 'month');
     $('vList').setAttribute('aria-selected', st.view === 'list');
-    st.view === 'month' ? renderMonth() : renderList();
+    $('vYear').setAttribute('aria-selected', st.view === 'year');
+    st.view === 'month' ? renderMonth() : st.view === 'year' ? renderYear() : renderList();
     renderDayPanel();
     postHeight();
   }
@@ -106,6 +107,62 @@
     }
     $('view').innerHTML = html + '</div>';
   }
+
+
+  // ----- Jahresansicht: 12 Monate auf einen Blick -----
+  function renderYear() {
+    const list = visible();
+    const byDay = {};
+    const y0 = ymd(st.y, 0, 1), y1 = ymd(st.y, 11, 31);
+    for (const e of list) {
+      const a = e.start.slice(0, 10) < y0 ? y0 : e.start.slice(0, 10), b = e.end.slice(0, 10) > y1 ? y1 : e.end.slice(0, 10);
+      if (a > y1 || b < y0) continue;
+      for (let d = parse(a), end = parse(b); d <= end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+        const k = ymd(d.getFullYear(), d.getMonth(), d.getDate());
+        (byDay[k] = byDay[k] || []).push(e);
+      }
+    }
+    const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate());
+    const total = list.filter((e) => e.end.slice(0, 10) >= y0 && e.start.slice(0, 10) <= y1).length;
+    let html = `<div class="year"><p class="year-sum">${total} Termin${total === 1 ? '' : 'e'} im Jahr ${st.y} · Tag antippen für Details</p><div class="ymonths">`;
+    for (let m = 0; m < 12; m++) {
+      const lead = wdIndex(new Date(st.y, m, 1)), days = new Date(st.y, m + 1, 0).getDate();
+      html += `<section class="ymonth"><h3><button class="ymname" data-month="${m}" aria-label="${MONTHS[m]} ${st.y} in der Monatsansicht öffnen">${MONTHS[m]}</button></h3><div class="ygrid">`;
+      html += WD_SHORT.map((d, i) => `<span class="ydow${i === 6 ? ' we' : ''}">${d}</span>`).join('');
+      html += '<span class="yblank"></span>'.repeat(lead);
+      for (let d = 1; d <= days; d++) {
+        const ds = ymd(st.y, m, d), evs = byDay[ds] || [];
+        const cats = [...new Set(evs.map((e) => e.category))];
+        const wd = (lead + d - 1) % 7;
+        const cls = ['yday', wd === 6 && 'we', ds === todayStr && 'today', evs.length && 'has'].filter(Boolean).join(' ');
+        let style = '';
+        if (cats.length) {
+          const cols = cats.slice(0, 4).map((c) => catOf(c).color), step = 100 / cols.length;
+          style = ` style="--tint:${cols[0]};--bar:linear-gradient(90deg,${cols.map((c, i) => `${c} ${i * step}% ${(i + 1) * step}%`).join(',')})"`;
+        }
+        const label = `${d}. ${MONTHS[m]}${evs.length ? `, ${evs.length} Termin${evs.length > 1 ? 'e' : ''}: ${evs.slice(0, 3).map((e) => e.title).join(', ')}` : ''}`;
+        html += evs.length
+          ? `<button class="${cls}" data-day="${ds}"${style} aria-label="${esc(label)}" title="${esc(evs.map((e) => e.title).join('\n'))}">${d}</button>`
+          : `<span class="${cls}">${d}</span>`;
+      }
+      html += '</div></section>';
+    }
+    $('view').innerHTML = html + '</div></div>';
+  }
+
+  // Tag mit mehreren Terminen: Auswahl öffnen; mit einem Termin: direkt die Details
+  function openDay(ds) {
+    const evs = eventsOn(ds, visible());
+    if (!evs.length) return;
+    if (evs.length === 1) return openEvent(evs[0].id);
+    st.lastFocus = document.activeElement;
+    $('dTitle').textContent = longDate(ds);
+    $('dList').innerHTML = evs.map((e) => itemHtml(e, false)).join('');
+    $('dayModal').hidden = false;
+    $('dClose').focus();
+    window.parent !== window && window.parent.postMessage({ type: 'bbc-cal-scroll-top' }, '*');
+  }
+  function closeDay() { $('dayModal').hidden = true; st.lastFocus && st.lastFocus.focus && st.lastFocus.focus(); }
 
   function renderDayPanel() {
     const p = $('dayPanel');
@@ -165,7 +222,7 @@
 
   // ----- Events -----
   function shift(n) {
-    if (st.view === 'list' && st.scope === 'year') st.y += n;
+    if (st.view === 'year' || (st.view === 'list' && st.scope === 'year')) st.y += n;
     else { const d = new Date(st.y, st.m + n, 1); st.y = d.getFullYear(); st.m = d.getMonth(); }
     st.sel = null; load();
   }
@@ -177,10 +234,15 @@
     if (day) { st.sel = st.sel === day.dataset.day ? null : day.dataset.day; render(); }
     const chip = t.closest('.chip');
     if (chip) { const id = chip.dataset.cat; st.hidden.has(id) ? st.hidden.delete(id) : st.hidden.add(id); renderChips(); render(); }
+    const ym = t.closest('.ymname');
+    if (ym) { st.m = Number(ym.dataset.month); st.view = 'month'; st.sel = null; load(); return; }
+    const yd = t.closest('.yday.has');
+    if (yd) return openDay(yd.dataset.day);
     if (t === $('modal')) closeModal();
+    if (t === $('dayModal')) closeDay();
   });
   document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape' && !$('modal').hidden) closeModal();
+    if (ev.key === 'Escape') { if (!$('modal').hidden) closeModal(); else if (!$('dayModal').hidden) closeDay(); }
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList?.contains('day')) { ev.preventDefault(); ev.target.click(); }
   });
   $('mClose').onclick = closeModal;
@@ -189,6 +251,8 @@
   $('today').onclick = () => { st.y = today.getFullYear(); st.m = today.getMonth(); st.sel = null; load(); };
   $('vMonth').onclick = () => { st.view = 'month'; load(); };
   $('vList').onclick = () => { st.view = 'list'; load(); };
+  $('vYear').onclick = () => { st.view = 'year'; load(); };
+  $('dClose').onclick = closeDay;
   $('sMonth').onclick = () => { st.scope = 'month'; load(); };
   $('sYear').onclick = () => { st.scope = 'year'; load(); };
   $('team').onchange = (e) => { st.team = e.target.value; render(); };

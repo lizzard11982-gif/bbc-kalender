@@ -29,6 +29,7 @@
     <div class="view" role="tablist" aria-label="Ansicht">
       <button role="tab" id="vMonth" aria-selected="true">Monat</button>
       <button role="tab" id="vList" aria-selected="false">Liste</button>
+      <button role="tab" id="vYear" aria-selected="false">Jahr</button>
     </div>
   </section>
 
@@ -48,6 +49,17 @@
   <div id="view"></div>
   <section id="dayPanel" class="day-panel" hidden aria-live="polite"></section>
 </main>
+
+<div class="modal" id="dayModal" hidden role="dialog" aria-modal="true" aria-labelledby="dTitle">
+  <div class="sheet">
+    <button class="close" id="dClose" aria-label="Schließen">×</button>
+    <div class="m-stripe" style="--c:var(--navy)"></div>
+    <div class="m-body">
+      <h2 id="dTitle"></h2>
+      <div id="dList"></div>
+    </div>
+  </div>
+</div>
 
 <div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="mTitle">
   <div class="sheet">
