@@ -18,6 +18,7 @@ const CATEGORIES = [
   { id: 'camp', label: 'Camps & Turniere', color: '#F09C00' },
   { id: 'verein', label: 'Vereinsleben', color: '#2F7D6B' },
   { id: 'sponsor', label: 'Sponsoren & Presse', color: '#6B4FA0' },
+  { id: 'bildung', label: 'Aus- und Weiterbildung', color: '#2A6FB5' },
 ];
 const TEAMS = [
   { id: 'alle', label: 'Gesamtverein' },
