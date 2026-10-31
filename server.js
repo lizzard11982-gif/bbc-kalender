@@ -3,7 +3,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { loadCredentials, createGoogleStore } = require('./lib/google');
+const { loadCredentials, createGoogleStore, createReadOnlySource } = require('./lib/google');
+const { mapGames } = require('./lib/games');
 const { createMockStore } = require('./lib/mock');
 const auth = require('./lib/auth');
 
@@ -30,6 +31,12 @@ const TEAMS = [
 const creds = loadCredentials();
 const calendarId = process.env.GOOGLE_CALENDAR_ID;
 const store = creds && calendarId ? createGoogleStore(creds, calendarId) : createMockStore();
+
+// Zusätzliche Kalender (nur lesen), z. B. Spielplan: GAMES_CALENDAR_ID (mehrere mit Komma)
+const gameSources = creds
+  ? (process.env.GAMES_CALENDAR_ID || '').split(',').map((x) => x.trim()).filter(Boolean)
+      .map((id, i) => ({ id, i, src: createReadOnlySource(creds, id) }))
+  : (process.env.GAMES_MOCK ? [{ id: 'mock', i: 0, src: { list: async () => require('./lib/mock').gamesSample() } }] : []);
 
 // ---------- Nutzer ----------
 let users = [];
@@ -83,7 +90,16 @@ async function listCached(from, to) {
   const key = from + '|' + to, hit = cache.get(key);
   if (hit && Date.now() - hit.t < 60000) return hit.v;
   const ver = version;
-  const v = await store.list(from, to);
+  let v = await store.list(from, to);
+  const extra = await Promise.all(gameSources.map(async (g) => {
+    try { return mapGames(await g.src.list(from, to), g.i); }
+    catch (e) { console.error('Spielplan-Kalender nicht lesbar:', e.message); return []; }
+  }));
+  if (extra.some((x) => x.length)) {
+    // Dopplung vermeiden: gleicher Titel + Beginn schon im Hauptkalender
+    const seen = new Set(v.map((e) => e.title + '|' + e.start));
+    v = v.concat(extra.flat().filter((e) => !seen.has(e.title + '|' + e.start))).sort((a, b) => a.start.localeCompare(b.start));
+  }
   if (ver === version) cache.set(key, { v, t: Date.now() }); // keine veralteten Daten nach einer Änderung cachen
   return v;
 }
@@ -176,6 +192,8 @@ async function api(req, res, url) {
     return send(res, 201, ev);
   }
   const mm = p.match(/^\/api\/events\/([^/]+)$/);
+  if (mm && decodeURIComponent(mm[1]).startsWith('g:') && (m === 'PUT' || m === 'DELETE'))
+    return send(res, 403, { error: 'Spielplan-Termine sind schreibgeschützt und kommen aus dem Spielplan-Kalender.' });
   if (mm && m === 'PUT') {
     const r = validate(await readBody(req));
     if (r.error) return send(res, 400, { error: r.error });
