@@ -57,7 +57,7 @@
       const team = st.teams.find((t) => t.id === e.team);
       return `<article class="ev" style="--c:${c.color}"><div class="dbox"><b>${d.getDate()}</b><span>${WD[d.getDay()]}, ${MON[d.getMonth()]}</span></div>
         <div><div class="t">${esc(e.title)}</div><div class="s">${esc(when)}${e.location ? ' · ' + esc(e.location) : ''}${team && e.team !== 'alle' ? ' · ' + esc(team.label) : ''}</div><span class="tag">${esc(c.label)}</span></div>
-        <div class="acts"><button class="btn ghost small" data-edit="${esc(e.id)}">Bearbeiten</button><button class="btn danger small" data-del="${esc(e.id)}">Löschen</button></div></article>`;
+        <div class="acts">${e.readOnly ? '<span class="muted small">Spielplan (nur Anzeige)</span>' : `<button class="btn ghost small" data-edit="${esc(e.id)}">Bearbeiten</button><button class="btn danger small" data-del="${esc(e.id)}">Löschen</button>`}</div></article>`;
     }).join('') : `<p class="empty">${st.upcoming ? 'Keine kommenden Termine. Lege mit „+ Neuer Termin“ den ersten an.' : 'Keine vergangenen Termine.'}</p>`;
   }
   $('list').onclick = async (e) => {
